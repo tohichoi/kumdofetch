@@ -11,8 +11,16 @@ import urllib.request
 from bs4 import BeautifulSoup
 from telegram import Bot
 from telegram.ext import Updater, CommandHandler
+from telegram.utils.helpers import escape_markdown
 
-old_articles = dict()
+old_articles = {}
+urls = {
+    'center_notice': ['http://www.kumdo.org/notice/', 'http://www.kumdo.org/notice/', 13],
+    'center_lesson': ['http://www.kumdo.org/deahan_kumdo/d-kumdo6.php', 'http://www.kumdo.org/deahan_kumdo/', 16],
+    'center_news': ['http://www.kumdo.org/news/', 'http://www.kumdo.org/news/', 13],
+    'gg_notice': ['http://www.kyungkum.org/board/list.php?board=notice&page=1&md=4', 'http://www.kyungkum.org/board/',
+                  11],
+}
 
 
 def get_html(url):
@@ -20,65 +28,102 @@ def get_html(url):
         return response.read()
 
 
-def check_new_article(old_articles):
-    url_gg = 'http://www.kyungkum.org/board/list.php?board=notice&page=1&md=4'
+def check_new_article(o_articles, preloaded_htmls=None):
 
-    if not os.path.exists('html_gg.pickle'):
-        html_gg = get_html(url_gg)
-    else:
-        with open('html_gg.pickle', 'rb') as fd:
-            html_gg = pickle.load(fd)
+    htmls = preloaded_htmls if preloaded_htmls else dict()
 
-    soup = BeautifulSoup(html_gg)
-    elm2 = soup.find_all('table')
-    tr = elm2[11].find_all('tr')
-
+    # for k, u in urls.items():
+    #     htmls[k] = get_html(u[0])
     new_articles = dict()
-    for r in tr:
-        # print(r.text.strip().replace("\n", ' '))
-        td = r.find_all('td')
-        # td[0] : number or \n
-        # td[1] : 제목
-        # td[2] : 글쓴이
-        # td[3] : 작성일
-        # td[4] : 조회
-        for d in td:
-            print(d.text.strip())
 
-        num = td[0].text.strip()
-        if len(num) > 0 and num not in old_articles:
-            new_articles[num] = (
-                td[1].text.strip(), 'http://www.kyungkum.org/board/' + td[1].find('a').attrs['href'].strip())
+    for board_name, url in urls.items():
+        if board_name not in htmls:
+            htmls[board_name] = get_html(url[0])
 
-    # send new articles
-    # for k, v in new_articles.items():
-    #     print(f'{k} : {v}')
+        # htmls[board_name] = get_html(url[0])
+
+        soup = BeautifulSoup(htmls[board_name])
+        elms = soup.find_all('table')
+
+        # for i, e in enumerate(elms):
+        #     ...:     print(f'=============== {i} =============\n{e.text.strip()}')
+        tr = elms[url[2]].find_all('tr')
+        for r in tr:
+            # print(r.text.strip().replace("\n", ' '))
+            td = r.find_all('td')
+            # td[0] : number or \n
+            # td[1] : 제목
+            # td[2] : 글쓴이
+            # td[3] : 작성일
+            # td[4] : 조회
+            # for d in td:
+            #     print(d.text.strip())
+
+            num = td[0].text.strip()
+            board_key = board_name + num
+            if len(num) > 0 and num.isnumeric() and board_key not in o_articles:
+                new_articles[board_key] = (
+                    td[1].text.strip(), urls[board_name][1] + td[1].find('a').attrs['href'].strip())
 
     return new_articles
 
 
-def fetch_articles(bot, chatid, old_article):
-    # context.bot.send_message(chatid, "일 시작합니다~")
-    new_articles = check_new_article(old_articles)
-
-    # send new articles
-    msg = ''
-    for k, v in new_articles.items():
-        msg += f'[{k} {v[0]}]({v[1]})\n'
-    if len(msg) > 0:
-        bot.send_message(chatid, msg, parse_mode='Markdown')
-        old_articles.update(**new_articles)
+def get_title(board_key):
+    if 'center_notice' in board_key:
+        return '[중앙:공지]'
+    elif 'center_news' in board_key:
+        return '[중앙:뉴스]'
+    elif 'center_lesson' in board_key:
+        return '[중앙:강습회]'
+    elif 'gg_notice' in board_key:
+        return '[경기:공지]'
     else:
-        bot.send_message(chatid, 'No new notice', parse_mode = 'Markdown')
+        return ''
+
+
+def make_message(articles):
+    # msg = f'**{title}**\n'
+    msgs = []
+    m = ''
+    for k, v in articles.items():
+        # s = f'* \\[{k} {v[0]}\\]\\({v[1]}\\)\n'
+        s = f'{get_title(k)} <a href="{v[1]}">{v[0]}</a>\n'
+        if len(m) + len(s) > 4096:
+            msgs.append(m)
+            m = s
+        else:
+            m += s
+
+    if len(m) > 0:
+        msgs.append(m)
+
+    return msgs
+
+
+def fetch_articles(tbot, chatid, o_article, notify_empty_event=False):
+
+    new_articles_sl = check_new_article(o_article)
+    msgs = make_message(new_articles_sl)
+    if len(msgs) > 0:
+        for msg in msgs:
+            tbot.send_message(chatid, msg, parse_mode='HTML')
+    else:
+        if notify_empty_event:
+            tbot.send_message(chatid, "No new message", parse_mode='HTML')
+
+    if len(new_articles_sl) > 0:
+        o_article.update(**new_articles_sl)
+        with open('old_articles.pickle', 'wb+') as fd:
+            pickle.dump(o_article, fd)
 
 
 def job_check(context):
     logging.info(f'{context}')
 
-    bot = context.bot
-    chatid = context.job.context[1]
+    tbot = context.bot
+    chatid = context.job.context
 
-    fetch_articles(bot, chatid, old_articles)
+    fetch_articles(tbot, chatid, old_articles)
 
 
 # context: telegram.ext.CallbackContext
@@ -87,7 +132,7 @@ def callback_check(update, context):
 
     chatid = update.effective_chat.id
 
-    fetch_articles(context.bot, chatid, old_articles)
+    fetch_articles(context.bot, chatid, old_articles, notify_empty_event=True)
 
 
 if __name__ == '__main__':
@@ -100,7 +145,11 @@ if __name__ == '__main__':
 
     with open('bot.json') as fd:
         cf = json.load(fd)
-        bot = Bot(cf['bot_token'])
+        Bot(cf['bot_token'])
+
+    if os.path.exists('old_articles.pickle'):
+        with open('old_articles.pickle', 'rb') as fd:
+            old_articles = pickle.load(fd)
 
     updater = Updater(token=cf['bot_token'], use_context=True)
     dispatcher = updater.dispatcher
@@ -108,6 +157,6 @@ if __name__ == '__main__':
     job_queue = updater.job_queue
     dispatcher.add_handler(CommandHandler('check', callback_check, pass_job_queue=True))
 
-    updater.job_queue.run_repeating(job_check, interval=3600 * 2, first=1, context=(bot, cf['bot_chatid']))
+    updater.job_queue.run_repeating(job_check, interval=3600 * 2, first=1, context=cf['bot_chatid'])
 
     updater.start_polling()
