@@ -7,6 +7,7 @@ import logging
 import os
 import pickle
 import urllib.request
+from urllib.parse import urlencode, quote_plus
 
 from bs4 import BeautifulSoup
 from telegram import Bot
@@ -49,7 +50,7 @@ def check_new_article(o_articles, preloaded_htmls=None):
         #     ...:     print(f'=============== {i} =============\n{e.text.strip()}')
         tr = elms[url[2]].find_all('tr')
         for r in tr:
-            # print(r.text.strip().replace("\n", ' '))
+            print(r.text.strip().replace("\n", ' '))
             td = r.find_all('td')
             # td[0] : number or \n
             # td[1] : 제목
@@ -85,9 +86,10 @@ def make_message(articles):
     # msg = f'**{title}**\n'
     msgs = []
     m = ''
+    table = str.maketrans('<>', '[]')
     for k, v in articles.items():
         # s = f'* \\[{k} {v[0]}\\]\\({v[1]}\\)\n'
-        s = f'{get_title(k)} <a href="{v[1]}">{v[0]}</a>\n'
+        s = f'{get_title(k)} <a href="{v[1]}">{v[0].translate(table)}</a>\n'
         if len(m) + len(s) > 4096:
             msgs.append(m)
             m = s
