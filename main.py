@@ -50,7 +50,7 @@ def check_new_article(o_articles, preloaded_htmls=None):
         #     ...:     print(f'=============== {i} =============\n{e.text.strip()}')
         tr = elms[url[2]].find_all('tr')
         for r in tr:
-            print(r.text.strip().replace("\n", ' '))
+            # print(r.text.strip().replace("\n", ' '))
             td = r.find_all('td')
             # td[0] : number or \n
             # td[1] : 제목
