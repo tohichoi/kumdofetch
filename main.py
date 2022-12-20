@@ -7,6 +7,7 @@ import logging
 import os
 import pickle
 import urllib.request
+from urllib.parse import urlencode, quote_plus
 
 from bs4 import BeautifulSoup
 from telegram import Bot
@@ -89,9 +90,10 @@ def make_message(articles):
     # msg = f'**{title}**\n'
     msgs = []
     m = ''
+    table = str.maketrans('<>', '[]')
     for k, v in articles.items():
         # s = f'* \\[{k} {v[0]}\\]\\({v[1]}\\)\n'
-        s = f'{get_title(k)} <a href="{v[1]}">{v[0]}</a>\n'
+        s = f'{get_title(k)} <a href="{v[1]}">{v[0].translate(table)}</a>\n'
         if len(m) + len(s) > 4096:
             msgs.append(m)
             m = s
