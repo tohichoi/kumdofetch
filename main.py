@@ -68,7 +68,10 @@ def check_new_article(o_articles, preloaded_htmls=None):
             board_key = board_name + num
             if len(num) > 0 and num.isnumeric() and board_key not in o_articles:
                 new_articles[board_key] = (
-                    td[1].text.strip(), urls[board_name][1] + td[1].find('a').attrs['href'].strip())
+                    #td[1].text.strip(), urls[board_name][1] + td[1].find('a').attrs['href'].strip())
+                    td[1].text.strip(), td[1].find('a').attrs['href'].strip())
+                print(new_articles)
+                
 
     return new_articles
 
@@ -166,3 +169,4 @@ if __name__ == '__main__':
     updater.job_queue.run_repeating(job_check, interval=3600 * 2, first=1, context=cf['bot_chatid'])
 
     updater.start_polling()
+    updater.idle()
