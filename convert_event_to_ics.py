@@ -57,7 +57,9 @@ def main():
 		
 	print(c.events)
 
-	with open('event.ics', 'w') as f:
+	p, e=os.path.splitext(sys.argv[1])
+	new_file = p + '.ics'
+	with open(new_file, 'w') as f:
 	    f.writelines(c.serialize_iter())
 
 	
