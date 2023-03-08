@@ -16,11 +16,13 @@ from telegram.utils.helpers import escape_markdown
 
 old_articles = {}
 urls = {
+    # 중앙
     'center_notice': ['http://www.kumdo.org/bbs/board.php?bo_table=notice', 'http://www.kumdo.org/bbs/board.php?bo_table=notice', 0],
-    # 'center_lesson': ['http://www.kumdo.org/deahan_kumdo/d-kumdo6.php', 'http://www.kumdo.org/deahan_kumdo/', 16],
+    # 연수원
+    'center_lesson': ['http://ti.kumdo.org/bbs/board.php?bo_table=notice', 'http://www.kumdo.org/bbs/board.php?bo_table=notice', 0],
     # 'center_news': ['http://www.kumdo.org/news/', 'http://www.kumdo.org/news/', 13],
-    # 'gg_notice': ['http://www.kyungkum.org/board/list.php?board=notice&page=1&md=4', 'http://www.kyungkum.org/board/',
-    #               11],
+    # 경기도검도회
+    'gg_notice': ['http://www.kyungkum.org/bbs/board.php?bo_table=notice', 'http://www.kyungkum.org/bbs/board.php?bo_table=notice', 0],
 }
 
 
