@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.pickle-backup
+.venv/
+venv/
+.idea/
+bot.json
+old_articles.pickle
+.agents/
+.claude/
+PROJECT-DESCRIPTION.md
+AGENTS.md
+CLAUDE.md

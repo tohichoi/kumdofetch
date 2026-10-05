@@ -1,0 +1,10 @@
+services:
+  kumdofetch:
+    build: .
+    container_name: kumdofetch
+    restart: unless-stopped
+    volumes:
+      - ./bot.json:/app/bot.json:ro
+      - ./old_articles.pickle:/app/old_articles.pickle
+    environment:
+      - TZ=Asia/Seoul

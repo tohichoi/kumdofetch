@@ -111,17 +111,21 @@ def make_message(articles):
     return msgs
 
 
-def fetch_articles(tbot, chatid, o_article, notify_empty_event=False):
+def fetch_articles(tbot, chatid, o_article, notify_empty_event=False, message_thread_id=None):
 
     logging.info('Checking articles')
+    msg_kwargs = {}
+    if message_thread_id is not None:
+        msg_kwargs['message_thread_id'] = message_thread_id
+
     new_articles_sl = check_new_article(o_article)
     msgs = make_message(new_articles_sl)
     if len(msgs) > 0:
         for msg in msgs:
-            tbot.send_message(chatid, msg, parse_mode='HTML')
+            tbot.send_message(chatid, msg, parse_mode='HTML', **msg_kwargs)
     else:
         if notify_empty_event:
-            tbot.send_message(chatid, "No new message", parse_mode='HTML')
+            tbot.send_message(chatid, "No new message", parse_mode='HTML', **msg_kwargs)
 
     if len(new_articles_sl) > 0:
         o_article.update(**new_articles_sl)
@@ -133,9 +137,15 @@ def job_check(context):
     logging.info(f'{context}')
 
     tbot = context.bot
-    chatid = context.job.context
+    job_ctx = context.job.context
+    if isinstance(job_ctx, dict):
+        chatid = job_ctx.get('chat_id')
+        thread_id = job_ctx.get('message_thread_id')
+    else:
+        chatid = job_ctx
+        thread_id = None
 
-    fetch_articles(tbot, chatid, old_articles)
+    fetch_articles(tbot, chatid, old_articles, message_thread_id=thread_id)
 
 
 # context: telegram.ext.CallbackContext
@@ -143,8 +153,9 @@ def callback_check(update, context):
     logging.info(f'{update.effective_message.text}')
 
     chatid = update.effective_chat.id
+    thread_id = getattr(update.effective_message, 'message_thread_id', None)
 
-    fetch_articles(context.bot, chatid, old_articles, notify_empty_event=True)
+    fetch_articles(context.bot, chatid, old_articles, notify_empty_event=True, message_thread_id=thread_id)
 
 
 if __name__ == '__main__':
@@ -169,7 +180,15 @@ if __name__ == '__main__':
     job_queue = updater.job_queue
     dispatcher.add_handler(CommandHandler('check', callback_check, pass_job_queue=True))
 
-    updater.job_queue.run_repeating(job_check, interval=3600 * 2, first=1, context=cf['bot_chatid'])
+    updater.job_queue.run_repeating(
+        job_check,
+        interval=3600 * 2,
+        first=1,
+        context={
+            'chat_id': cf['bot_chatid'],
+            'message_thread_id': cf.get('message_thread_id')
+        }
+    )
 
     updater.start_polling()
     updater.idle()
