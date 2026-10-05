@@ -113,6 +113,7 @@ def make_message(articles):
 
 def fetch_articles(tbot, chatid, o_article, notify_empty_event=False):
 
+    logging.info('Checking articles')
     new_articles_sl = check_new_article(o_article)
     msgs = make_message(new_articles_sl)
     if len(msgs) > 0:
