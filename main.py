@@ -1,5 +1,6 @@
 # This is a sample Python script.
 
+import html
 import json
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
@@ -7,7 +8,6 @@ import logging
 import os
 import pickle
 import urllib.request
-from urllib.parse import urlencode, quote_plus
 
 from bs4 import BeautifulSoup
 from telegram import Bot
@@ -27,7 +27,7 @@ urls = {
 
 
 def get_html(url):
-    with urllib.request.urlopen(url) as response:
+    with urllib.request.urlopen(url, timeout=30) as response:
         return response.read()
 
 
@@ -95,10 +95,11 @@ def make_message(articles):
     # msg = f'**{title}**\n'
     msgs = []
     m = ''
-    table = str.maketrans('<>', '[]')
     for k, v in articles.items():
         # s = f'* \\[{k} {v[0]}\\]\\({v[1]}\\)\n'
-        s = f'{get_title(k)} <a href="{v[1]}">{v[0].translate(table)}</a>\n'
+        title = html.escape(v[0], quote=False)
+        href = html.escape(v[1], quote=True)
+        s = f'{get_title(k)} <a href="{href}">{title}</a>\n'
         if len(m) + len(s) > 4096:
             msgs.append(m)
             m = s
@@ -136,16 +137,19 @@ def fetch_articles(tbot, chatid, o_article, notify_empty_event=False, message_th
 def job_check(context):
     logging.info(f'{context}')
 
-    tbot = context.bot
-    job_ctx = context.job.context
-    if isinstance(job_ctx, dict):
-        chatid = job_ctx.get('chat_id')
-        thread_id = job_ctx.get('message_thread_id')
-    else:
-        chatid = job_ctx
-        thread_id = None
+    try:
+        tbot = context.bot
+        job_ctx = context.job.context
+        if isinstance(job_ctx, dict):
+            chatid = job_ctx.get('chat_id')
+            thread_id = job_ctx.get('message_thread_id')
+        else:
+            chatid = job_ctx
+            thread_id = None
 
-    fetch_articles(tbot, chatid, old_articles, message_thread_id=thread_id)
+        fetch_articles(tbot, chatid, old_articles, message_thread_id=thread_id)
+    except Exception:
+        logging.exception('job_check failed')
 
 
 # context: telegram.ext.CallbackContext
