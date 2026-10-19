@@ -50,6 +50,8 @@ kumdofetch의 구조, 배포, 현재 상태를 다음 세션 작업자가 바로
 - `app/`·`config/`·`scripts/`·`tests/` 구조로 재편, `main.py`·`tests.py`·`requirements.txt` 제거.
 - uv/pyproject 단일 표준, TOML+pydantic 설정, ruff, pytest, 시크릿 스캔 도입.
 - Dockerfile uv 기반·비루트(1001) 유지, compose에 `sjh2_default` 외부 네트워크와 `env_file` 추가, `bot.json` 마운트 제거.
+- healthcheck를 `^\.venv/bin/python -m scripts\.run$` 앵커로 수정(sh 자기 매칭 제거), 연속 실패 3회 시 프로세스 종료.
+- 엘레나 수석 감사관 재감사 PASS, PR #1로 main 머지.
 
 ### 2026-10-18 — 안정성 보강
 - 수집 타임아웃, 사이클 예외 격리, 제목·href HTML 이스케이프 적용.
@@ -60,5 +62,6 @@ kumdofetch의 구조, 배포, 현재 상태를 다음 세션 작업자가 바로
 ## 6. 주의사항
 
 - `bot.json`, `old_articles.pickle`은 git 커밋 금지.
+- 수집 사이클이 연속 3회 실패하면 프로세스가 종료되고 `restart: unless-stopped`로 재기동된다.
 - `kumdofetch_bot` 봇 토큰 폐기는 후속 작업이다.
 - `convert_event_to_ics.py`는 ATD 전환 범위 밖이며 `ics` 의존성이 선언돼 있지 않다.
