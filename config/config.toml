@@ -1,0 +1,38 @@
+# kumdofetch - non-secret configuration (SSOT).
+# Secrets (atd-alert caller token) live only in the ATD_ALERT_TOKEN environment variable.
+
+[notifier]
+url = "http://atd-alert:8099"
+topic = "대한검도회"
+timeout_seconds = 30
+message_max_chars = 4096
+test_message = "[kumdofetch] atd-alert 연결 테스트입니다."
+empty_message = "새 글이 없습니다."
+
+[scraper]
+timeout_seconds = 30
+
+[scheduler]
+interval_seconds = 7200
+max_consecutive_failures = 3
+
+[state]
+path = "old_articles.pickle"
+
+[[sources]]
+name = "center_notice"
+url = "http://www.kumdo.org/bbs/board.php?bo_table=notice"
+table_index = 0
+title_prefix = "[중앙:공지]"
+
+[[sources]]
+name = "center_lesson"
+url = "http://ti.kumdo.org/bbs/board.php?bo_table=notice"
+table_index = 0
+title_prefix = "[중앙:강습회]"
+
+[[sources]]
+name = "gg_notice"
+url = "http://www.kyungkum.org/bbs/board.php?bo_table=notice"
+table_index = 0
+title_prefix = "[경기:공지]"

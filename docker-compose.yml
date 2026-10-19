@@ -3,8 +3,35 @@ services:
     build: .
     container_name: kumdofetch
     restart: unless-stopped
+    user: "1001:1001"
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
     volumes:
-      - ./bot.json:/app/bot.json:ro
       - ./old_articles.pickle:/app/old_articles.pickle
+    env_file:
+      - /home/x/.config/atd-alert/kumdofetch.env
     environment:
       - TZ=Asia/Seoul
+    networks:
+      - sjh2_default
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f '^\\.venv/bin/python -m scripts\\.run$' || exit 1"]
+      interval: 1m
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    mem_limit: 256m
+    cpus: 0.5
+
+networks:
+  sjh2_default:
+    external: true

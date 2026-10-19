@@ -1,0 +1,32 @@
+# VCS / 에이전트 설정
+.git
+.gitignore
+.agents/
+.claude/
+.serena/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.uv-cache/
+.ruff_cache/
+.pytest_cache/
+
+# 시크릿 / 상태 파일 (이미지에 포함 금지)
+bot.json
+old_articles.pickle
+*.pickle-backup
+data/
+
+# 테스트 / 문서 / 레거시
+tests/
+docs/
+readme*
+PROJECT-DESCRIPTION.md
+AGENTS.md
+CLAUDE.md
+event-2023-*
+이벤트.md

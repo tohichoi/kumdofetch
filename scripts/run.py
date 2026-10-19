@@ -1,0 +1,14 @@
+"""Entry point: python -m scripts.run."""
+
+from __future__ import annotations
+
+import logging
+
+from app.controllers.cli import main
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    raise SystemExit(main())

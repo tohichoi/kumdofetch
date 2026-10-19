@@ -9,6 +9,6 @@ bot.json
 old_articles.pickle
 .agents/
 .claude/
-PROJECT-DESCRIPTION.md
+.serena/
 AGENTS.md
 CLAUDE.md

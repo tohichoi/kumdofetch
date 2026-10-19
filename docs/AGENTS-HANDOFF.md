@@ -4,50 +4,61 @@ kumdofetch의 구조, 배포, 현재 상태를 다음 세션 작업자가 바로
 
 ## 1. 프로젝트 정체성
 
-- 대한검도회 중앙·연수원, 경기도검도회 게시판의 신규 공지를 2시간마다 수집해 텔레그램 슈퍼그룹 토픽으로 보내는 알림 봇.
-- 실행 환경: Python 3.11, Docker / Docker Compose.
+- 대한검도회 중앙·연수원, 경기도검도회 게시판의 신규 공지를 2시간마다 수집해 atd-alert를 통해 텔레그램 `대한검도회` 토픽으로 보내는 알림 봇.
+- 실행 환경: Python 3.11, uv, Docker / Docker Compose.
 - 에이전트 행동 지침: [AGENTS.md](../AGENTS.md).
 
 ## 2. 구조 (SSOT)
 
-| 파일 | 역할 |
+| 경로 | 역할 |
 |---|---|
-| `main.py` | 크롤링, 메시지 생성, 스케줄러, `/check` 핸들러 통합 진입점 |
-| `bot.json` | 봇 토큰, `chat_id(-1004422316688)`, `message_thread_id(10)` — git 제외 |
-| `old_articles.pickle` | 기발송 게시글 키 영속 저장 — git 제외, 컨테이너 볼륨 |
+| `app/controllers/cli.py` | argparse(`--once`/`--test`/`--notify-empty`), 실행 루프 |
+| `app/services/scraper.py` | 게시판 HTML 수집·파싱 |
+| `app/services/notifier.py` | atd-alert `POST /v1/messages` 클라이언트 |
+| `app/services/state.py` | `old_articles.pickle` 상태 저장·복원 |
+| `app/models/article.py` | `Article` 데이터 모델 |
+| `app/views/message.py` | HTML 링크 메시지 렌더링·길이 분할 |
+| `config/config.toml` | 비밀이 아닌 설정 SSOT (URL·토픽·주기·경로·소스) |
+| `config/settings.py` | tomllib + pydantic 로더, `ATD_ALERT_TOKEN` 환경변수 로드 |
+| `scripts/run.py` | 엔트리 (`python -m scripts.run`) |
+| `scripts/check-code-quality.sh` | 파일·함수 길이 및 시크릿/PII 스캔 |
+| `tests/` | 메시지·파서·payload·설정 테스트 |
 | `Dockerfile`, `docker-compose.yml` | 컨테이너 빌드·배포 정의 |
-| `tests.py` | 파싱 테스트 (저장소에 없는 `htmls.pickle` 필요) |
-| `convert_event_to_ics.py`, `event-2023-*` | 일정 텍스트→ICS 변환 보조 도구 (요구사항에 `ics` 미기재) |
+| `old_articles.pickle` | 기발송 게시글 키 영속 저장 — git 제외, 컨테이너 볼륨 |
+| `convert_event_to_ics.py`, `event-2023-*` | 범위 밖 레거시 일정 변환 도구 |
 
 ## 3. 실행 및 배포
 
-- 로컬: `uv run python main.py`
+- 1회 수집: `uv run python -m scripts.run --once`
+- 연결 테스트 발송: `uv run python -m scripts.run --test`
+- 기본 실행: `uv run python -m scripts.run` (즉시 1회 후 `interval_seconds` 간격 반복)
+- 품질 검사: `uv run ruff check .`, `uv run pytest -q`, `bash scripts/check-code-quality.sh`
 - 로컬 재빌드: `docker compose up -d --build`
 - 원격(sjx): `ssh sjx "cd /home/x/Workspace/kumdofetch && git pull && docker compose up -d --build"`
 - 로그: `docker logs -f kumdofetch`
 
-## 4. 파이프라인
+## 4. 설정·시크릿
 
-- 지휘: Mike 디렉터
-- S.P.I.R.E.: 설계 Leo, 백엔드 Kai, QA Noah
-- O.R.B.I.T.: 배포·보안 Chloe
+- 비밀 아닌 설정은 `config/config.toml`만 수정한다. 코드에 URL·토픽·주기·경로를 하드코딩하지 않는다.
+- `ATD_ALERT_TOKEN`은 `/home/x/.config/atd-alert/kumdofetch.env`에서 주입한다. 파일·문서·로그에 값을 남기지 않는다.
+- atd-alert 연결: 내부 Docker 네트워크 `sjh2_default`의 `http://atd-alert:8099`.
 
 ## 5. 작업 이력
 
-### 2026-10-05 — Docker화 및 토픽 연동 (`a684cb8`)
-- `message_thread_id` 를 `fetch_articles` / `job_check` / `callback_check` 에 전달.
-- `@kumdofetch_bot` 연결, 그룹 초대, 발송 검증 완료.
-- `Dockerfile`, `docker-compose.yml`, `.gitignore` 추가, `sjx` 배포 완료.
+### 2026-10-19 — ATD 규격 전환 및 atd-alert 연동
+- 텔레그램 직접 발송(`python-telegram-bot`) 제거, atd-alert HTTP 호출로 전환.
+- `app/`·`config/`·`scripts/`·`tests/` 구조로 재편, `main.py`·`tests.py`·`requirements.txt` 제거.
+- uv/pyproject 단일 표준, TOML+pydantic 설정, ruff, pytest, 시크릿 스캔 도입.
+- Dockerfile uv 기반·비루트(1001) 유지, compose에 `sjh2_default` 외부 네트워크와 `env_file` 추가, `bot.json` 마운트 제거.
 
 ### 2026-10-18 — 안정성 보강
-- `get_html`: `urlopen(..., timeout=30)` 추가 — 사이트 무응답 시 잡 정지 방지.
-- `job_check`: 전체 `try/except` + `logging.exception` — 스케줄러 생존 보장.
-- `make_message`: `str.maketrans` 대체, stdlib `html.escape` 로 제목·href 이스케이프 — `&` 포함 제목 발송 실패 해결.
-- `html` 모듈 import 추가, 미사용 `urlencode`/`quote_plus` import 제거.
-- 컨테이너 재빌드 및 원격 배포는 미실행.
+- 수집 타임아웃, 사이클 예외 격리, 제목·href HTML 이스케이프 적용.
+
+### 2026-10-05 — Docker화 및 토픽 연동
+- 컨테이너화, `sjx` 배포, 슈퍼그룹 토픽 발송 검증.
 
 ## 6. 주의사항
 
-- `bot.json`, `old_articles.pickle` 은 git 커밋 금지 (`.gitignore` 유지).
-- `python-telegram-bot==13.15` 는 Python 3.12+ 에서 `imghdr`/`pkg_resources` 문제 → Python 3.11 유지.
-- 남은 취약점: 게시판 `table` 인덱스 의존 파싱, pickle 무한 증가, `tests.py` 실질 미동작, `convert_event_to_ics.py` 의 `ics` 의존성 미기재.
+- `bot.json`, `old_articles.pickle`은 git 커밋 금지.
+- `kumdofetch_bot` 봇 토큰 폐기는 후속 작업이다.
+- `convert_event_to_ics.py`는 ATD 전환 범위 밖이며 `ics` 의존성이 선언돼 있지 않다.
