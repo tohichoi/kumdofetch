@@ -21,7 +21,8 @@ def render_line(article: Article, max_chars: int) -> str:
         raise ValueError("max_chars must be positive")
 
     href = html.escape(_validate_href(article.href, article.key), quote=True)
-    template = f'{article.title_prefix} <a href="{href}">{{title}}</a>\n'
+    date_tag = f"{html.escape('<' + article.date + '>', quote=False)} " if article.date else ""
+    template = f'{article.title_prefix} {date_tag}<a href="{href}">{{title}}</a>\n'
     budget = max_chars - len(template.format(title="")) - len(ELLIPSIS)
     if budget < 0:
         LOGGER.error("skipping %s: fixed markup exceeds %s chars", article.key, max_chars)

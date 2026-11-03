@@ -31,6 +31,7 @@ def test_parse_extracts_new_numeric_rows() -> None:
     assert first.title == "제목 & 안내"
     assert first.href == "https://www.kumdo.org/bbs/board.php?bo_table=notice&wr_id=12"
     assert first.title_prefix == "[중앙:공지]"
+    assert first.date == "2026-10-19"
 
 
 def test_parse_skips_known_keys() -> None:
@@ -50,6 +51,19 @@ def test_parse_collects_pinned_notice_rows() -> None:
     articles = parse_articles(html_bytes, _source(), known_keys=set())
 
     assert list(articles) == ["www.kumdo.org#99"]
+
+
+def test_parse_reads_short_month_day_dates() -> None:
+    html_bytes = (
+        "<table><tr><td>공지</td>"
+        '<td><a href="https://ti.kumdo.org/bbs/board.php?wr_id=7">강습회</a></td>'
+        "<td>연수원</td><td>523</td><td>10-26</td></tr></table>"
+    ).encode()
+
+    articles = parse_articles(html_bytes, _source(), known_keys=set())
+
+    assert articles["ti.kumdo.org#7"].date.endswith("-10-26")
+    assert len(articles["ti.kumdo.org#7"].date) == 10
 
 
 def test_parse_rejects_out_of_range_table_index() -> None:

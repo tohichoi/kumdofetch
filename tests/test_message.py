@@ -34,6 +34,22 @@ def test_render_escapes_title_and_href() -> None:
     ]
 
 
+def test_render_includes_escaped_date() -> None:
+    article = Article(
+        key="center_notice1",
+        title="제목",
+        href="https://www.kumdo.org/?wr_id=1",
+        title_prefix="[중앙:공지]",
+        date="2026-10-03",
+    )
+
+    messages = render_messages([article], 4096)
+
+    assert messages == [
+        '[중앙:공지] &lt;2026-10-03&gt; <a href="https://www.kumdo.org/?wr_id=1">제목</a>\n'
+    ]
+
+
 def test_render_splits_at_max_chars() -> None:
     articles = [_article(index, "제목 " + "가" * 40) for index in range(10)]
 
