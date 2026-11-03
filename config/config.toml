@@ -38,3 +38,15 @@ name = "gg_notice"
 url = "http://www.kyungkum.org/bbs/board.php?bo_table=notice"
 table_index = 0
 title_prefix = "[경기:공지]"
+
+[[sources]]
+name = "sn_notice"
+url = "http://www.snkumdo.co.kr/dmboard/list.php?board=sungnamsi06"
+table_index = 16
+title_prefix = "[성남:공지]"
+
+[[sources]]
+name = "sn_gameresult"
+url = "http://www.snkumdo.co.kr/dmboard/list.php?board=gameresult"
+table_index = 16
+title_prefix = "[성남:대회결과]"
