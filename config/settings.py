@@ -31,6 +31,7 @@ class NotifierSettings(BaseModel):
 
 class ScraperSettings(BaseModel):
     timeout_seconds: float = Field(gt=0)
+    max_pages: int = Field(default=1, ge=1)
 
 
 class SchedulerSettings(BaseModel):

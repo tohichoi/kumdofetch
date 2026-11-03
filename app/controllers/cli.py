@@ -28,15 +28,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="send a message when no new articles are found",
     )
+    parser.add_argument(
+        "--seed",
+        action="store_true",
+        help="record current board contents as known and exit without sending",
+    )
     return parser.parse_args(argv)
 
 
 def run_cycle(settings: Settings, token: str, notify_empty: bool) -> None:
     """Collect, send and persist one cycle."""
     state = load_state(settings.state.resolved_path)
-    new_articles = collect_new_articles(
-        settings.sources, set(state), settings.scraper.timeout_seconds
-    )
+    new_articles = _collect(settings, state)
     messages = render_messages(new_articles.values(), settings.notifier.message_max_chars)
 
     if messages:
@@ -45,15 +48,41 @@ def run_cycle(settings: Settings, token: str, notify_empty: bool) -> None:
     elif notify_empty:
         send_message(settings.notifier.empty_message, settings.notifier, token)
 
-    if new_articles:
-        state.update(_to_state(new_articles))
-        save_state(settings.state.resolved_path, state)
+    _remember(settings, state, new_articles)
     LOGGER.info("cycle complete: %s new article(s)", len(new_articles))
+
+
+def seed_state(settings: Settings) -> int:
+    """Record current board contents as known without sending anything."""
+    state = load_state(settings.state.resolved_path)
+    new_articles = _collect(settings, state)
+    _remember(settings, state, new_articles)
+    return len(new_articles)
+
+
+def _collect(settings: Settings, state: ArticleState) -> dict[str, Article]:
+    return collect_new_articles(
+        settings.sources,
+        set(state),
+        settings.scraper.timeout_seconds,
+        settings.scraper.max_pages,
+    )
+
+
+def _remember(settings: Settings, state: ArticleState, articles: dict[str, Article]) -> None:
+    if articles:
+        state.update(_to_state(articles))
+        save_state(settings.state.resolved_path, state)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     settings = load_settings()
+
+    if args.seed:
+        LOGGER.info("seeded %s article(s) without notifying", seed_state(settings))
+        return 0
+
     token = load_alert_token()
 
     if args.test:

@@ -7,7 +7,7 @@ import urllib.request
 
 from bs4 import BeautifulSoup
 
-from app.models.article import Article
+from app.models.article import Article, article_key
 from config.settings import SourceSettings
 
 LOGGER = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ def fetch_html(url: str, timeout_seconds: float) -> bytes:
 def parse_articles(
     html_bytes: bytes, source: SourceSettings, known_keys: set[str]
 ) -> dict[str, Article]:
-    """Extract new-numeric rows from the configured table index."""
+    """Extract new rows from the configured table index."""
     if not html_bytes:
         raise ValueError(f"empty HTML response for source {source.name}")
 
@@ -49,14 +49,27 @@ def parse_articles(
 
 
 def collect_new_articles(
-    sources: list[SourceSettings], known_keys: set[str], timeout_seconds: float
+    sources: list[SourceSettings],
+    known_keys: set[str],
+    timeout_seconds: float,
+    max_pages: int = 1,
 ) -> dict[str, Article]:
-    """Fetch and parse every configured source in order."""
+    """Fetch and parse the first `max_pages` pages of every configured source."""
     new_articles: dict[str, Article] = {}
     for source in sources:
-        html_bytes = fetch_html(source.url, timeout_seconds)
-        new_articles.update(parse_articles(html_bytes, source, known_keys))
+        for page in range(1, max_pages + 1):
+            new_articles.update(
+                parse_articles(fetch_html(_page_url(source.url, page), timeout_seconds),
+                               source, known_keys)
+            )
     return new_articles
+
+
+def _page_url(url: str, page: int) -> str:
+    if page == 1:
+        return url
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}page={page}"
 
 
 def _parse_row(row, source: SourceSettings, known_keys: set[str]) -> Article | None:
@@ -67,16 +80,18 @@ def _parse_row(row, source: SourceSettings, known_keys: set[str]) -> Article | N
         return None
 
     number = cells[0].text.strip()
-    key = f"{source.name}{number}"
-    if not number.isnumeric() or key in known_keys:
-        return None
-
     link = cells[1].find("a")
-    if link is None or not link.get("href"):
-        raise ValueError(f"source {source.name}: article {key} has no link")
+    href = str(link["href"]).strip() if link is not None and link.get("href") else ""
+    key = article_key(href, f"{source.name}{number}")
+    if key in known_keys:
+        return None
+    if not href:
+        if number.isnumeric():
+            raise ValueError(f"source {source.name}: article {key} has no link")
+        return None
     return Article(
         key=key,
         title=cells[1].text.strip(),
-        href=str(link["href"]).strip(),
+        href=href,
         title_prefix=source.title_prefix,
     )

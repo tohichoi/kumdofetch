@@ -23,6 +23,19 @@ def test_roundtrip(tmp_path: Path) -> None:
     assert load_state(path) == state
 
 
+def test_legacy_number_keys_migrate_to_wr_id(tmp_path: Path) -> None:
+    path = tmp_path / "state.pickle"
+    path.write_bytes(
+        pickle.dumps(
+            {"center_notice12": ("제목", "https://www.kumdo.org/bbs/board.php?bo_table=notice&wr_id=12")}
+        )
+    )
+
+    assert load_state(path) == {
+        "www.kumdo.org#12": ("제목", "https://www.kumdo.org/bbs/board.php?bo_table=notice&wr_id=12")
+    }
+
+
 def test_corrupt_pickle_raises(tmp_path: Path) -> None:
     path = tmp_path / "state.pickle"
     path.write_bytes(b"not a pickle")

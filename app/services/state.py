@@ -5,6 +5,8 @@ from __future__ import annotations
 import pickle
 from pathlib import Path
 
+from app.models.article import article_key
+
 ArticleState = dict[str, tuple[str, str]]
 
 
@@ -15,7 +17,15 @@ def load_state(path: Path) -> ArticleState:
     with path.open("rb") as handle:
         state = pickle.load(handle)
     _validate_state(state, path)
-    return state
+    return _migrate_keys(state)
+
+
+def _migrate_keys(state: ArticleState) -> ArticleState:
+    """Rewrite legacy number-based keys to stable wr_id-based keys."""
+    migrated: ArticleState = {}
+    for key, value in state.items():
+        migrated.setdefault(article_key(value[1], key), value)
+    return migrated
 
 
 def save_state(path: Path, state: ArticleState) -> None:
