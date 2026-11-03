@@ -6,6 +6,7 @@ import logging
 import re
 import urllib.request
 from datetime import date
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
@@ -45,10 +46,21 @@ def parse_articles(
         )
 
     articles: dict[str, Article] = {}
+    candidates = 0
     for row in tables[source.table_index].find_all("tr"):
+        if row.find("a", href=True) is None:
+            _log_unexpected_row(row, source)
+            continue
+        candidates += 1
         article = _parse_row(row, source, known_keys)
         if article is not None:
             articles.setdefault(article.key, article)
+    if candidates == 0:
+        LOGGER.warning(
+            "source %s: table_index %s yielded no article rows; layout may have changed",
+            source.name,
+            source.table_index,
+        )
     return articles
 
 
@@ -76,16 +88,24 @@ def _page_url(url: str, page: int) -> str:
     return f"{url}{separator}page={page}"
 
 
+def _log_unexpected_row(row, source: SourceSettings) -> None:
+    """Report a row without a link only when it looks like content, not a separator."""
+    cells = row.find_all("td")
+    if len(cells) >= MIN_ROW_CELLS and row.get_text(strip=True):
+        LOGGER.error("malformed row in %s: %s", source.name, row)
+
+
 def _parse_row(row, source: SourceSettings, known_keys: set[str]) -> Article | None:
     cells = row.find_all("td")
     if len(cells) < MIN_ROW_CELLS:
-        if cells:
+        if cells and row.get_text(strip=True):
             LOGGER.error("malformed row in %s: %s", source.name, row)
         return None
 
     number = cells[0].text.strip()
     link = cells[1].find("a")
-    href = str(link["href"]).strip() if link is not None and link.get("href") else ""
+    raw_href = str(link["href"]).strip() if link is not None and link.get("href") else ""
+    href = urljoin(source.url, raw_href) if raw_href else ""
     key = article_key(href, f"{source.name}{number}")
     if key in known_keys:
         return None

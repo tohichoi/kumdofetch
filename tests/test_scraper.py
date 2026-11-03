@@ -10,6 +10,7 @@ from app.services.scraper import parse_articles
 from config.settings import SourceSettings
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "board.html"
+SNKUMDO_PATH = Path(__file__).parent / "fixtures" / "snkumdo.html"
 
 
 def _source(table_index: int = 0) -> SourceSettings:
@@ -64,6 +65,27 @@ def test_parse_reads_short_month_day_dates() -> None:
 
     assert articles["ti.kumdo.org#7"].date.endswith("-10-26")
     assert len(articles["ti.kumdo.org#7"].date) == 10
+
+
+def test_parse_resolves_relative_links_and_skips_separator_rows() -> None:
+    source = SourceSettings(
+        name="sn_notice",
+        url="http://www.snkumdo.co.kr/dmboard/list.php?board=sungnamsi06",
+        table_index=0,
+        title_prefix="[성남:공지]",
+    )
+
+    articles = parse_articles(SNKUMDO_PATH.read_bytes(), source, known_keys=set())
+
+    assert list(articles) == [
+        "www.snkumdo.co.kr#sungnamsi06#427",
+        "www.snkumdo.co.kr#sungnamsi06#442",
+    ]
+    assert articles["www.snkumdo.co.kr#sungnamsi06#442"].href == (
+        "http://www.snkumdo.co.kr/dmboard/read.php"
+        "?board=sungnamsi06&md=4&mode=view&idx=442&search=&searchstring=&page=1"
+    )
+    assert articles["www.snkumdo.co.kr#sungnamsi06#442"].date == "2026-10-28"
 
 
 def test_parse_rejects_out_of_range_table_index() -> None:
