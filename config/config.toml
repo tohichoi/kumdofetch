@@ -11,6 +11,8 @@ empty_message = "새 글이 없습니다."
 
 [scraper]
 timeout_seconds = 30
+# 게시판 1페이지가 고정 공지로만 채워질 수 있어 2페이지까지 훑는다.
+max_pages = 2
 
 [scheduler]
 interval_seconds = 7200

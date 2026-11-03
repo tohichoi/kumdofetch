@@ -12,11 +12,11 @@ kumdofetch의 구조, 배포, 현재 상태를 다음 세션 작업자가 바로
 
 | 경로 | 역할 |
 |---|---|
-| `app/controllers/cli.py` | argparse(`--once`/`--test`/`--notify-empty`), 실행 루프 |
-| `app/services/scraper.py` | 게시판 HTML 수집·파싱 |
+| `app/controllers/cli.py` | argparse(`--once`/`--test`/`--notify-empty`/`--seed`), 실행 루프 |
+| `app/services/scraper.py` | 게시판 HTML 수집·파싱, `max_pages` 페이지 순회 |
 | `app/services/notifier.py` | atd-alert `POST /v1/messages` 클라이언트 |
-| `app/services/state.py` | `old_articles.pickle` 상태 저장·복원 |
-| `app/models/article.py` | `Article` 데이터 모델 |
+| `app/services/state.py` | `old_articles.pickle` 상태 저장·복원, 구 키 마이그레이션 |
+| `app/models/article.py` | `Article` 모델, `article_key()` (호스트+`wr_id` 키 생성) |
 | `app/views/message.py` | HTML 링크 메시지 렌더링·길이 분할 |
 | `config/config.toml` | 비밀이 아닌 설정 SSOT (URL·토픽·주기·경로·소스) |
 | `config/settings.py` | tomllib + pydantic 로더, `ATD_ALERT_TOKEN` 환경변수 로드 |
@@ -31,6 +31,7 @@ kumdofetch의 구조, 배포, 현재 상태를 다음 세션 작업자가 바로
 
 - 1회 수집: `uv run python -m scripts.run --once`
 - 연결 테스트 발송: `uv run python -m scripts.run --test`
+- 현재 게시판 글을 발송 없이 읽음 처리: `uv run python -m scripts.run --seed`
 - 기본 실행: `uv run python -m scripts.run` (즉시 1회 후 `interval_seconds` 간격 반복)
 - 품질 검사: `uv run ruff check .`, `uv run pytest -q`, `bash scripts/check-code-quality.sh`
 - 로컬 재빌드: `docker compose up -d --build`
@@ -45,12 +46,18 @@ kumdofetch의 구조, 배포, 현재 상태를 다음 세션 작업자가 바로
 
 ## 5. 작업 이력
 
+### 2026-11-03 — 게시판 파싱 누락 수정
+- 원인: 경기도검도회 1페이지가 고정 공지로만 채워져 번호 있는 글이 0건 → 파서가 매 주기 0건으로 조용히 종료. 상태도 2025-03(`gg_notice1314`)에서 멈춰 있었음.
+- 글 식별자를 번호 칸에서 링크의 `wr_id` 기반(`호스트#wr_id`)으로 변경 → 고정 공지("공지") 행도 수집 대상에 포함.
+- `[scraper] max_pages` 도입(기본 1, 운영 2)으로 1페이지만이 아닌 여러 페이지를 순회.
+- `load_state`에서 기존 숫자 키를 `wr_id` 키로 자동 마이그레이션(기존 600건 기록 유지).
+- `--seed` 옵션 추가(현재 글을 알림 없이 읽음 처리), 배포 시 64건 시드 후 재기동.
+- 사용자 요청으로 최근 한 달(2026-10-03 이후) 글 32건을 미확인으로 되돌려 재발송. 5페이지까지 훑느라 10월 이전 65건이 함께 발송됨(상태 624→721건).
+- 테스트 32건·ruff 통과, 새 이미지로 컨테이너 재기동.
+
 ### 2026-10-19 — ATD 규격 전환 및 atd-alert 연동
-- 텔레그램 직접 발송(`python-telegram-bot`) 제거, atd-alert HTTP 호출로 전환.
-- `app/`·`config/`·`scripts/`·`tests/` 구조로 재편, `main.py`·`tests.py`·`requirements.txt` 제거.
-- uv/pyproject 단일 표준, TOML+pydantic 설정, ruff, pytest, 시크릿 스캔 도입.
-- Dockerfile uv 기반·비루트(1001) 유지, compose에 `sjh2_default` 외부 네트워크와 `env_file` 추가, `bot.json` 마운트 제거.
-- healthcheck를 `^\.venv/bin/python -m scripts\.run$` 앵커로 수정(sh 자기 매칭 제거), 연속 실패 3회 시 프로세스 종료.
+- 텔레그램 직접 발송 제거, atd-alert HTTP 호출로 전환. `app/`·`config/`·`scripts/`·`tests/` 구조로 재편(uv/pyproject, TOML+pydantic, ruff, pytest, 시크릿 스캔).
+- compose에 `sjh2_default` 외부 네트워크와 `env_file` 추가, healthcheck 앵커 수정, 연속 실패 3회 시 종료.
 - 엘레나 수석 감사관 재감사 PASS, PR #1로 main 머지.
 
 ### 2026-10-18 — 안정성 보강
@@ -63,5 +70,7 @@ kumdofetch의 구조, 배포, 현재 상태를 다음 세션 작업자가 바로
 
 - `bot.json`, `old_articles.pickle`은 git 커밋 금지.
 - 수집 사이클이 연속 3회 실패하면 프로세스가 종료되고 `restart: unless-stopped`로 재기동된다.
+- 게시판 고정 공지가 늘어 1페이지가 공지로만 차면 `max_pages`를 늘려야 한다. 0건이 계속되면 `.venv/bin/python -c` 로 페이지별 행 수를 먼저 확인한다.
+- `--seed`는 알림 없이 상태만 갱신하므로 배포 직후 대량 누락 복구 시 사용한다.
 - `kumdofetch_bot` 봇 토큰 폐기는 후속 작업이다.
 - `convert_event_to_ics.py`는 ATD 전환 범위 밖이며 `ics` 의존성이 선언돼 있지 않다.
