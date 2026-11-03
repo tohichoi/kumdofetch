@@ -4,7 +4,7 @@ kumdofetch의 구조, 배포, 현재 상태를 다음 세션 작업자가 바로
 
 ## 1. 프로젝트 정체성
 
-- 대한검도회 중앙·연수원, 경기도검도회 게시판의 신규 공지를 2시간마다 수집해 atd-alert를 통해 텔레그램 `대한검도회` 토픽으로 보내는 알림 봇.
+- 대한검도회 중앙·연수원, 경기도검도회, 성남시검도회 게시판의 신규 글을 2시간마다 수집해 atd-alert를 통해 텔레그램 `대한검도회` 토픽으로 보내는 알림 봇.
 - 실행 환경: Python 3.11, uv, Docker / Docker Compose.
 - 에이전트 행동 지침: [AGENTS.md](../AGENTS.md).
 
@@ -13,11 +13,11 @@ kumdofetch의 구조, 배포, 현재 상태를 다음 세션 작업자가 바로
 | 경로 | 역할 |
 |---|---|
 | `app/controllers/cli.py` | argparse(`--once`/`--test`/`--notify-empty`/`--seed`), 실행 루프 |
-| `app/services/scraper.py` | 게시판 HTML 수집·파싱, `max_pages` 페이지 순회 |
+| `app/services/scraper.py` | 게시판 HTML 수집·파싱, 상대 링크 절대화, `max_pages` 페이지 순회 |
 | `app/services/notifier.py` | atd-alert `POST /v1/messages` 클라이언트 |
 | `app/services/state.py` | `old_articles.pickle` 상태 저장·복원, 구 키 마이그레이션 |
-| `app/models/article.py` | `Article` 모델, `article_key()` (호스트+`wr_id` 키 생성) |
-| `app/views/message.py` | HTML 링크 메시지 렌더링·길이 분할 |
+| `app/models/article.py` | `Article` 모델(날짜 포함), `article_key()` (호스트+보드+`wr_id`/`idx` 키 생성) |
+| `app/views/message.py` | HTML 링크 메시지 렌더링(`접두어 <날짜> 제목`)·길이 분할 |
 | `config/config.toml` | 비밀이 아닌 설정 SSOT (URL·토픽·주기·경로·소스) |
 | `config/settings.py` | tomllib + pydantic 로더, `ATD_ALERT_TOKEN` 환경변수 로드 |
 | `scripts/run.py` | 엔트리 (`python -m scripts.run`) |
@@ -46,6 +46,14 @@ kumdofetch의 구조, 배포, 현재 상태를 다음 세션 작업자가 바로
 
 ## 5. 작업 이력
 
+### 2026-11-03 — 메시지 날짜 표시, 성남시검도회 출처 추가
+- 메시지에 게시글 날짜를 `[접두어] <YYYY-MM-DD> 제목` 형식으로 표시. 텔레그램 `parse_mode=HTML` 이 태그로 오인하지 않도록 `<`·`>` 를 이스케이프한다.
+- 날짜 표기 3종 처리: `2026-10-23`(중앙), `26-10-30`(경기), `10-26`(연수원, 연도 없으면 올해 기준).
+- 성남시검도회 2개 출처(`sn_notice`=성남시공지사항, `sn_gameresult`=대회결과) 추가. `[성남:공지]`, `[성남:대회결과]` 접두어.
+- 성남 사이트(dmboard) 대응: 글 ID `idx` 인식, `board` 파라미터를 키에 포함(같은 호스트의 두 게시판 충돌 방지), 상대 링크 `urljoin` 절대화, 1칸 구분 행 무시.
+- 수집 표에서 링크 있는 행이 0건이면 구조 변경 경고를 남긴다(조용한 0건 재발 방지).
+- 배포 시 성남 기존 글 60건을 한 번 발송, 이후 사이클 0건 확인. 테스트 35건·ruff 통과.
+
 ### 2026-11-03 — 게시판 파싱 누락 수정
 - 원인: 경기도검도회 1페이지가 고정 공지로만 채워져 번호 있는 글이 0건 → 파서가 매 주기 0건으로 조용히 종료. 상태도 2025-03(`gg_notice1314`)에서 멈춰 있었음.
 - 글 식별자를 번호 칸에서 링크의 `wr_id` 기반(`호스트#wr_id`)으로 변경 → 고정 공지("공지") 행도 수집 대상에 포함.
@@ -72,5 +80,7 @@ kumdofetch의 구조, 배포, 현재 상태를 다음 세션 작업자가 바로
 - 수집 사이클이 연속 3회 실패하면 프로세스가 종료되고 `restart: unless-stopped`로 재기동된다.
 - 게시판 고정 공지가 늘어 1페이지가 공지로만 차면 `max_pages`를 늘려야 한다. 0건이 계속되면 `.venv/bin/python -c` 로 페이지별 행 수를 먼저 확인한다.
 - `--seed`는 알림 없이 상태만 갱신하므로 배포 직후 대량 누락 복구 시 사용한다.
+- 성남시검도회(`snkumdo.co.kr`)는 중첩 표 구조라 `table_index = 16`(가장 안쪽 목록 표)에 의존한다. 레이아웃이 바뀌면 구조 변경 경고나 `table_index out of range` 예외로 드러난다.
+- 성남 게시판 제목은 사이트가 이미 `...` 로 잘라서 내려준다. 원문 복원은 불가능하다.
 - `kumdofetch_bot` 봇 토큰 폐기는 후속 작업이다.
 - `convert_event_to_ics.py`는 ATD 전환 범위 밖이며 `ics` 의존성이 선언돼 있지 않다.
