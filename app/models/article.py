@@ -23,3 +23,4 @@ class Article:
     title: str
     href: str
     title_prefix: str
+    date: str = ""

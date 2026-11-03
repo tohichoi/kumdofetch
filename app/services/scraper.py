@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import re
 import urllib.request
+from datetime import date
 
 from bs4 import BeautifulSoup
 
@@ -13,6 +15,8 @@ from config.settings import SourceSettings
 LOGGER = logging.getLogger(__name__)
 
 MIN_ROW_CELLS = 2
+DATE_PATTERN = re.compile(r"^(\d{4}|\d{2})-(\d{2})-(\d{2})$")
+SHORT_DATE_PATTERN = re.compile(r"^(\d{2})-(\d{2})$")
 
 
 def fetch_html(url: str, timeout_seconds: float) -> bytes:
@@ -94,4 +98,37 @@ def _parse_row(row, source: SourceSettings, known_keys: set[str]) -> Article | N
         title=cells[1].text.strip(),
         href=href,
         title_prefix=source.title_prefix,
+        date=parse_post_date(row),
     )
+
+
+def parse_post_date(row) -> str:
+    """Return the first date-looking cell as ISO (YYYY-MM-DD), else ''."""
+    today = date.today()
+    for cell in row.find_all("td")[2:]:
+        parsed = _parse_date_cell(cell.text.strip(), today)
+        if parsed:
+            return parsed
+    return ""
+
+
+def _parse_date_cell(text: str, today: date) -> str:
+    match = DATE_PATTERN.match(text)
+    if match:
+        year, month, day = match.groups()
+        full_year = int(year) + 2000 if len(year) == 2 else int(year)
+        return _iso_date(full_year, int(month), int(day))
+
+    match = SHORT_DATE_PATTERN.match(text)
+    if match:
+        month, day = (int(part) for part in match.groups())
+        year = today.year if month <= today.month else today.year - 1
+        return _iso_date(year, month, day)
+    return ""
+
+
+def _iso_date(year: int, month: int, day: int) -> str:
+    try:
+        return date(year, month, day).isoformat()
+    except ValueError:
+        return ""
